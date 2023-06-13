@@ -1,4 +1,4 @@
-# Projecto BD 2
+# Proyecto BD 2
 
 ### **Integrantes**
 
@@ -8,7 +8,7 @@
 
 ## **Tabla de contenido**
 
-- [**Projecto BD 2**](#projecto_BD_2)
+- [**Proyecto BD 2**](#proyecto-bd-2)
     - [**Integrantes**](#integrantes)
     - [**Tabla de contenido**](#tabla-de-contenido)
 - [**Introducción**](#introducción)
@@ -34,3 +34,5 @@ En cuanto a los datos, se trabaja con el dataset arXiv, el cual es un repositori
 | doi | `string` |
 | abstract | `string` |
 | update_date | `date` |
+
+- Se utilizará el campo **abstract** para la aplicación del índice y realizar las consultas en base a este.
