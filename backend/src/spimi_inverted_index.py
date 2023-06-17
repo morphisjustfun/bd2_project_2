@@ -4,6 +4,7 @@ import os
 import shutil
 import pandas as pd
 import nltk
+from multiprocessing import Pool, cpu_count
 
 
 class SPIMIInvertedIndex:
@@ -116,11 +117,15 @@ class SPIMIInvertedIndex:
             current_files.sort(key=lambda x: int(x.split('/')[-1].split('_')[-1].split('.')[0]))
             remainder = total_files % current_batch_size
             index = 1
+            pool = Pool(processes=cpu_count())
             for i in range(0, total_files, current_batch_size):
                 first_group = current_files[i:i + current_batch_size // 2]
                 second_group = current_files[i + current_batch_size // 2:i + current_batch_size]
-                self.merge(first_group, second_group, output_dir, index)
+                # self.merge(first_group, second_group, output_dir, index)
+                pool.apply_async(self.merge, args=(first_group, second_group, output_dir, index))
                 index = index + current_batch_size
+            pool.close()
+            pool.join()
 
             if remainder > 0:
                 if remainder > current_batch_size // 2:
