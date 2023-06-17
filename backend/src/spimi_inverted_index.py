@@ -1,6 +1,5 @@
 import glob
 import json
-import math
 import os
 import shutil
 import pandas as pd
@@ -89,149 +88,188 @@ class SPIMIInvertedIndex:
         df.set_index('word', inplace=True)
         df['posting_list'] = df['posting_list'].apply(lambda x: json.loads(x))
         # for testing return only n/1000 rows
-        total_len = len(df)
-        if total_len > 1000:
-            return df.iloc[0:total_len // 1000, :]
-        else:
-            return df
-        # return df
+        # total_len = len(df)
+        # if total_len > 1000:
+        #     return df.iloc[0:total_len // 1000, :]
+        # else:
+        #     return df
+        return df
 
     def write_pd_block_to_disk(self, inverted_index: pd.DataFrame, index: int, base_dir: str) -> None:
-        output_file_path = f'{base_dir}/temp_{index}.feather'
+        output_file_path = f'{base_dir}temp_{index}.feather'
         inverted_index['posting_list'] = inverted_index['posting_list'].apply(lambda x: json.dumps(x))
         inverted_index.reset_index(inplace=True)
         inverted_index.rename(columns={'index': 'word'}, inplace=True)
         inverted_index.to_feather(output_file_path)
+        inverted_index['posting_list'] = inverted_index['posting_list'].apply(lambda x: json.loads(x))
+        inverted_index.set_index('word', inplace=True)
 
     def merge_blocks(self):
-        # merge without creating a file, instead, sort and store words in order in each file
-        # merge blocks. Use BSBI algorithm
-        # blocks = [glob.glob(f'{self.output_dir}/temp_{i}.feather') for i in range(1, 5)]
-        # levels = math.log2(self.blockSize)
+        current_batch_size = 2
+        total_files = len(glob.glob(f'{self.output_dir}/1/*.feather'))
+        while current_batch_size <= total_files:
+            output_dir = f'{self.output_dir}{current_batch_size}/'
+            input_dir = f'{self.output_dir}{current_batch_size // 2}/'
+            current_files = glob.glob(f'{input_dir}/*.feather')
+            if not os.path.exists(output_dir):
+                os.makedirs(output_dir)
+            current_files.sort(key=lambda x: int(x.split('/')[-1].split('_')[-1].split('.')[0]))
+            remainder = total_files % current_batch_size
+            index = 1
+            for i in range(0, total_files, current_batch_size):
+                first_group = current_files[i:i + current_batch_size // 2]
+                second_group = current_files[i + current_batch_size // 2:i + current_batch_size]
+                self.merge(first_group, second_group, output_dir, index)
+                index = index + current_batch_size
 
-        # total_block_files are all files in the dist/ directory
-        total_blocks_files = glob.glob(f'{self.output_dir}/*.feather')
-        total_current_batch_size = 1
+            if remainder > 0:
+                if remainder > current_batch_size // 2:
+                    first_group = current_files[
+                                  total_files - remainder:total_files - remainder + current_batch_size // 2]
+                    second_group = current_files[total_files - remainder + current_batch_size // 2:]
+                else:
+                    first_group = current_files[total_files - remainder:]
+                    second_group = []
+                self.merge(first_group, second_group, output_dir, index)
 
-        while total_current_batch_size != len(total_blocks_files):
-            if total_current_batch_size != 1:
-                input_folder = f'{self.output_dir}/{total_current_batch_size}'
-                total_blocks_files = glob.glob(f'{input_folder}/*.feather')
-            total_current_batch_size *= 2
-            # create folder dist/totals_current_batch_size
-            output_folder = f'{self.output_dir}/{total_current_batch_size}'
+            # merge the remainder
+            current_batch_size *= 2
 
-            if os.path.exists(output_folder):
-                shutil.rmtree(output_folder)
-            os.makedirs(output_folder)
+    def merge(self, first_group: list[str], second_group: list[str], output_dir: str, index: int) -> int:
+        total_files_to_write = len(first_group) + len(second_group)
+        total_length_per_output_buffer = self.read_block_from_disk(first_group[0]).shape[0]
+        output_buffer = pd.DataFrame(columns=['word', 'posting_list'])
+        output_buffer.set_index('word', inplace=True)
+        first_buffer = pd.DataFrame(columns=['word', 'posting_list'])
+        first_buffer.set_index('word', inplace=True)
+        second_buffer = pd.DataFrame(columns=['word', 'posting_list'])
+        second_buffer.set_index('word', inplace=True)
+        # write all the files empty
+        original_index = index
+        for i in range(total_files_to_write):
+            self.write_pd_block_to_disk(output_buffer, index, output_dir)
+            index += 1
+        index = original_index
 
-            remainder = len(total_blocks_files) % total_current_batch_size
-            if remainder != 0:
-                total_blocks_files.extend([total_blocks_files[-1]] * (total_current_batch_size - remainder))
+        while len(first_group) > 0 or len(second_group) > 0:
+            if len(first_group) > 0 and first_buffer.empty:
+                first_buffer = self.read_block_from_disk(first_group[0])
+                first_group.pop(0)
 
-            template_output_buffer = self.read_block_from_disk(total_blocks_files[-1]).iloc[0:0].copy()
-            limit_per_output_buffer = len(self.read_block_from_disk(total_blocks_files[0]))
+            if len(second_group) > 0 and second_buffer.empty:
+                second_buffer = self.read_block_from_disk(second_group[0])
+                second_group.pop(0)
 
-            output_buffer = None
-            for i in range(0, len(total_blocks_files), total_current_batch_size):
-                if output_buffer is not None:
-                    # write what is left in the output_buffer to disk
-                    self.write_pd_block_to_disk(output_buffer, index, output_folder)
-                    index += 1
-                index = i + 1
-                # in this point total_current_batch_size files output must be created
-                first_group = total_blocks_files[i:i + total_current_batch_size // 2]
-                # first_group is the first half of the total_current_batch_size files
-                second_group = total_blocks_files[i + total_current_batch_size // 2:i + total_current_batch_size]
-                # second_group is the second half of the total_current_batch_size files
-                files_written = 0
-                files_must_be_written = len(first_group) + len(second_group)
-
-                first_buffer = None
-                second_buffer = None
-                output_buffer = template_output_buffer.copy()
-
-                # bsbi algorithm
-                while len(first_group) > 0 or len(second_group) > 0:
-                    first_group_empty = False
-                    second_group_empty = False
-
-                    ignore_first_buffer_assignment = False
-                    ignore_second_buffer_assignment = False
-
-                    if first_buffer is not None and len(first_buffer) > 0:
-                        ignore_first_buffer_assignment = True
-
-                    if second_buffer is not None and len(second_buffer) > 0:
-                        ignore_second_buffer_assignment = True
-
-                    if len(first_group) > 0:
-                        if not ignore_first_buffer_assignment:
-                            first_buffer = self.read_block_from_disk(first_group[0])
-                            first_group.pop(0)
-                    else:
-                        first_group_empty = True
-
-                    if len(second_group) > 0:
-                        if not ignore_second_buffer_assignment:
-                            second_buffer = self.read_block_from_disk(second_group[0])
-                            second_group.pop(0)
-                    else:
-                        second_group_empty = True
-
-                    if first_group_empty:
-                        output_buffer = output_buffer.append(second_buffer)
-                        if len(output_buffer) >= limit_per_output_buffer and files_written < files_must_be_written:
-                            self.write_pd_block_to_disk(output_buffer, index, output_folder)
-                            index += 1
-                            files_written += 1
-                            output_buffer = template_output_buffer.copy()
-                        continue
-
-                    if second_group_empty:
-                        output_buffer = output_buffer.append(first_buffer)
-                        if len(output_buffer) >= limit_per_output_buffer and files_written < files_must_be_written:
-                            self.write_pd_block_to_disk(output_buffer, index, output_folder)
-                            index += 1
-                            files_written += 1
-                            output_buffer = template_output_buffer.copy()
-                        continue
-
-                    while len(first_buffer) > 0 and len(second_buffer) > 0:
-                        first_word = first_buffer.index[0]
-                        second_word = second_buffer.index[0]
-                        # first first_word is smaller than second_word, then insert first_word into output_buffer
-                        # and remove first_word from first_buffer
-                        # if first_word is equal to second_word, then merge the posting lists of first_word and second_word
-                        # and insert the merged posting list into output_buffer and remove first_word and second_word from
-                        if first_word < second_word:
-                            output_buffer = output_buffer.append(first_buffer.iloc[0])
-                            first_buffer.drop(first_word, inplace=True)
-                            if len(output_buffer) >= limit_per_output_buffer and files_written < files_must_be_written:
-                                self.write_pd_block_to_disk(output_buffer, index, output_folder)
-                                output_buffer = template_output_buffer.copy()
-                                index += 1
-                                files_written += 1
-                        elif first_word > second_word:
-                            output_buffer = output_buffer.append(second_buffer.iloc[0])
-                            second_buffer.drop(second_word, inplace=True)
-                            if len(output_buffer) >= limit_per_output_buffer and files_written < files_must_be_written:
-                                self.write_pd_block_to_disk(output_buffer, index, output_folder)
-                                output_buffer = template_output_buffer.copy()
-                                index += 1
-                                files_written += 1
+            if first_buffer.empty and not second_buffer.empty:
+                if total_files_to_write == 1:
+                    for word in second_buffer.index:
+                        if word in output_buffer.index:
+                            posting_list = second_buffer.loc[word]['posting_list'] + output_buffer.loc[word][
+                                'posting_list']
+                            output_buffer.loc[word]['posting_list'] = posting_list
                         else:
-                            # merge posting lists, the index of the posting list is the id of the document
-                            # the value of the posting list is the frequency of the word in the document
-                            merged_posting_list = first_buffer.loc[first_word, 'posting_list'] + \
-                                                  second_buffer.loc[second_word, 'posting_list']
-                            # append (index-first_word, value-merged_posting_list) to output_buffer
-                            output_buffer = output_buffer.append(pd.DataFrame({'posting_list': [merged_posting_list]},
-                                                                              index=[first_word]))
-                            first_buffer.drop(first_word, inplace=True)
-                            second_buffer.drop(second_word, inplace=True)
-                            if len(output_buffer) >= limit_per_output_buffer and files_written < files_must_be_written:
-                                self.write_pd_block_to_disk(output_buffer, index, output_folder)
-                                output_buffer = template_output_buffer.copy()
-                                index += 1
-                                files_written += 1
+                            output_buffer = output_buffer.append(second_buffer.loc[word])
+                    self.write_pd_block_to_disk(output_buffer, index, output_dir)
+                    index += 1
+                    return index
+
+                if second_buffer.shape[0] + output_buffer.shape[0] > total_length_per_output_buffer:
+                    to_add = second_buffer.iloc[0:total_length_per_output_buffer - output_buffer.shape[0], :]
+                    for word in to_add.index:
+                        if word in output_buffer.index:
+                            posting_list = to_add.loc[word]['posting_list'] + output_buffer.loc[word]['posting_list']
+                            output_buffer.loc[word]['posting_list'] = posting_list
+                        else:
+                            output_buffer = output_buffer.append(to_add.loc[word])
+                    second_buffer.drop(second_buffer.index[0:total_length_per_output_buffer - output_buffer.shape[0]],
+                                       inplace=True)
+                else:
+                    for word in second_buffer.index:
+                        if word in output_buffer.index:
+                            posting_list = second_buffer.loc[word]['posting_list'] + output_buffer.loc[word][
+                                'posting_list']
+                            output_buffer.loc[word]['posting_list'] = posting_list
+                        else:
+                            output_buffer = output_buffer.append(second_buffer.loc[word])
+                    second_buffer = pd.DataFrame(columns=['word', 'posting_list'])
+                    second_buffer.set_index('word', inplace=True)
+
+                if output_buffer.shape[0] >= total_length_per_output_buffer and total_files_to_write > 1:
+                    self.write_pd_block_to_disk(output_buffer, index, output_dir)
+                    index += 1
+                    output_buffer = pd.DataFrame(columns=['word', 'posting_list'])
+                    output_buffer.set_index('word', inplace=True)
+                    total_files_to_write -= 1
+
+            if not first_buffer.empty and second_buffer.empty:
+                if total_files_to_write == 1:
+                    for word in first_buffer.index:
+                        if word in output_buffer.index:
+                            posting_list = first_buffer.loc[word]['posting_list'] + output_buffer.loc[word][
+                                'posting_list']
+                            output_buffer.loc[word]['posting_list'] = posting_list
+                        else:
+                            output_buffer = output_buffer.append(first_buffer.loc[word])
+                    self.write_pd_block_to_disk(output_buffer, index, output_dir)
+                    index += 1
+                    return index
+
+                if first_buffer.shape[0] + output_buffer.shape[0] > total_length_per_output_buffer:
+                    to_add = first_buffer.iloc[0:total_length_per_output_buffer - output_buffer.shape[0], :]
+                    for word in to_add.index:
+                        if word in output_buffer.index:
+                            posting_list = to_add.loc[word]['posting_list'] + output_buffer.loc[word]['posting_list']
+                            output_buffer.loc[word]['posting_list'] = posting_list
+                        else:
+                            output_buffer = output_buffer.append(to_add.loc[word])
+                    first_buffer.drop(first_buffer.index[0:total_length_per_output_buffer - output_buffer.shape[0]],
+                                      inplace=True)
+                else:
+                    for word in first_buffer.index:
+                        if word in output_buffer.index:
+                            posting_list = first_buffer.loc[word]['posting_list'] + output_buffer.loc[word][
+                                'posting_list']
+                            output_buffer.loc[word]['posting_list'] = posting_list
+                        else:
+                            output_buffer = output_buffer.append(first_buffer.loc[word])
+                    first_buffer = pd.DataFrame(columns=['word', 'posting_list'])
+                    first_buffer.set_index('word', inplace=True)
+
+                if output_buffer.shape[0] >= total_length_per_output_buffer and total_files_to_write > 1:
+                    self.write_pd_block_to_disk(output_buffer, index, output_dir)
+                    index += 1
+                    output_buffer = pd.DataFrame(columns=['word', 'posting_list'])
+                    output_buffer.set_index('word', inplace=True)
+                    total_files_to_write -= 1
+
+            while not first_buffer.empty and not second_buffer.empty:
+                first_word = first_buffer.index[0]
+                second_word = second_buffer.index[0]
+                if first_word < second_word:
+                    output_buffer = output_buffer.append(first_buffer.iloc[0:1, :])
+                    first_buffer.drop(first_word, inplace=True)
+                elif first_word > second_word:
+                    output_buffer = output_buffer.append(second_buffer.iloc[0:1, :])
+                    second_buffer.drop(second_word, inplace=True)
+                else:
+                    posting_list = first_buffer.loc[first_word, 'posting_list'] + second_buffer.loc[
+                        second_word, 'posting_list']
+                    combined = pd.DataFrame({'word': [first_word],
+                                             'posting_list': [posting_list]})
+                    combined.set_index('word', inplace=True)
+                    output_buffer = output_buffer.append(combined)
+                    first_buffer.drop(first_word, inplace=True)
+                    second_buffer.drop(second_word, inplace=True)
+
+                if output_buffer.shape[0] >= total_length_per_output_buffer and total_files_to_write > 1:
+                    self.write_pd_block_to_disk(output_buffer, index, output_dir)
+                    index += 1
+                    output_buffer = pd.DataFrame(columns=['word', 'posting_list'])
+                    output_buffer.set_index('word', inplace=True)
+                    total_files_to_write -= 1
+
+        if total_files_to_write == 1:
+            self.write_pd_block_to_disk(output_buffer, index, output_dir)
+            index += 1
+
+        return index
