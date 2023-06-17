@@ -88,12 +88,6 @@ class SPIMIInvertedIndex:
         df = pd.read_feather(file_path)
         df.set_index('word', inplace=True)
         df['posting_list'] = df['posting_list'].apply(lambda x: json.loads(x))
-        # for testing return only n/1000 rows
-        # total_len = len(df)
-        # if total_len > 1000:
-        #     return df.iloc[0:total_len // 1000, :]
-        # else:
-        #     return df
         return df
 
     def write_pd_block_to_disk(self, inverted_index: pd.DataFrame, index: int, base_dir: str) -> None:
@@ -108,7 +102,8 @@ class SPIMIInvertedIndex:
     def merge_blocks(self):
         current_batch_size = 2
         total_files = len(glob.glob(f'{self.output_dir}/1/*.feather'))
-        while current_batch_size <= total_files:
+        total_files_nearest_2n = 2 ** (total_files - 1).bit_length()
+        while current_batch_size <= total_files_nearest_2n:
             output_dir = f'{self.output_dir}{current_batch_size}/'
             input_dir = f'{self.output_dir}{current_batch_size // 2}/'
             current_files = glob.glob(f'{input_dir}/*.feather')
