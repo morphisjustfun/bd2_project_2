@@ -6,7 +6,7 @@ from multiprocessing import cpu_count
 if __name__ == "__main__":
     test = SPIMIInvertedIndex(data_file_name="data/data.json", output_dir="dist/", block_size=50000)
     # test.clean()
-    # test.build()
+    test.build()
     # benchmark with miliseconds precision
     begin = time.time()
     test.merge_blocks()

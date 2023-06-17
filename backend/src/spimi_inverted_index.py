@@ -1,182 +1,11 @@
 import glob
-import json
 import os
 import shutil
-import pandas as pd
 import nltk
 from multiprocessing import Pool, cpu_count
 
-
-def write_pd_block_to_disk(inverted_index: pd.DataFrame, index: int, base_dir: str) -> None:
-    output_file_path = f'{base_dir}temp_{index}.feather'
-    inverted_index['posting_list'] = inverted_index['posting_list'].apply(lambda x: json.dumps(x))
-    inverted_index.reset_index(inplace=True)
-    inverted_index.rename(columns={'index': 'word'}, inplace=True)
-    inverted_index.to_feather(output_file_path)
-    inverted_index['posting_list'] = inverted_index['posting_list'].apply(lambda x: json.loads(x))
-    inverted_index.set_index('word', inplace=True)
-
-
-def read_block_from_disk(file_path: str) -> pd.DataFrame:
-    df = pd.read_feather(file_path)
-    df.set_index('word', inplace=True)
-    df['posting_list'] = df['posting_list'].apply(lambda x: json.loads(x))
-    return df
-
-
-def merge(first_group: list[str], second_group: list[str], output_dir: str, index: int) -> int:
-    total_files_to_write = len(first_group) + len(second_group)
-    total_length_per_output_buffer = read_block_from_disk(first_group[0]).shape[0]
-    output_buffer = pd.DataFrame(columns=['word', 'posting_list'])
-    output_buffer.set_index('word', inplace=True)
-    first_buffer = pd.DataFrame(columns=['word', 'posting_list'])
-    first_buffer.set_index('word', inplace=True)
-    second_buffer = pd.DataFrame(columns=['word', 'posting_list'])
-    second_buffer.set_index('word', inplace=True)
-    # write all the files empty
-    original_index = index
-    for i in range(total_files_to_write):
-        write_pd_block_to_disk(output_buffer, index, output_dir)
-        index += 1
-    index = original_index
-
-    while len(first_group) > 0 or len(second_group) > 0:
-        if len(first_group) > 0 and first_buffer.empty:
-            first_buffer = read_block_from_disk(first_group[0])
-            first_group.pop(0)
-
-        if len(second_group) > 0 and second_buffer.empty:
-            second_buffer = read_block_from_disk(second_group[0])
-            second_group.pop(0)
-
-        if first_buffer.empty and not second_buffer.empty:
-            if total_files_to_write == 1:
-                for word in second_buffer.index:
-                    if word in output_buffer.index:
-                        posting_list = second_buffer.loc[word]['posting_list'] + output_buffer.loc[word][
-                            'posting_list']
-                        output_buffer.loc[word]['posting_list'] = posting_list
-                    else:
-                        output_buffer = pd.concat([output_buffer, second_buffer.loc[[word]]])
-                write_pd_block_to_disk(output_buffer, index, output_dir)
-                index += 1
-                return index
-
-            if second_buffer.shape[0] + output_buffer.shape[0] > total_length_per_output_buffer:
-                to_add = second_buffer.iloc[0:total_length_per_output_buffer - output_buffer.shape[0], :]
-                for word in to_add.index:
-                    if word in output_buffer.index:
-                        posting_list = to_add.loc[word]['posting_list'] + output_buffer.loc[word]['posting_list']
-                        output_buffer.loc[word]['posting_list'] = posting_list
-                    else:
-                        output_buffer = pd.concat([output_buffer, to_add.loc[[word]]])
-                second_buffer.drop(second_buffer.index[0:total_length_per_output_buffer - output_buffer.shape[0]],
-                                   inplace=True)
-            else:
-                for word in second_buffer.index:
-                    if word in output_buffer.index:
-                        posting_list = second_buffer.loc[word]['posting_list'] + output_buffer.loc[word][
-                            'posting_list']
-                        output_buffer.loc[word]['posting_list'] = posting_list
-                    else:
-                        output_buffer = pd.concat([output_buffer, second_buffer.loc[[word]]])
-                second_buffer = pd.DataFrame(columns=['word', 'posting_list'])
-                second_buffer.set_index('word', inplace=True)
-
-            if output_buffer.shape[0] >= total_length_per_output_buffer and total_files_to_write > 1:
-                write_pd_block_to_disk(output_buffer, index, output_dir)
-                index += 1
-                output_buffer = pd.DataFrame(columns=['word', 'posting_list'])
-                output_buffer.set_index('word', inplace=True)
-                total_files_to_write -= 1
-
-        if not first_buffer.empty and second_buffer.empty:
-            if total_files_to_write == 1:
-                for word in first_buffer.index:
-                    if word in output_buffer.index:
-                        posting_list = first_buffer.loc[word]['posting_list'] + output_buffer.loc[word][
-                            'posting_list']
-                        output_buffer.loc[word]['posting_list'] = posting_list
-                    else:
-                        output_buffer = pd.concat([output_buffer, first_buffer.loc[[word]]])
-                write_pd_block_to_disk(output_buffer, index, output_dir)
-                index += 1
-                return index
-
-            if first_buffer.shape[0] + output_buffer.shape[0] > total_length_per_output_buffer:
-                to_add = first_buffer.iloc[0:total_length_per_output_buffer - output_buffer.shape[0], :]
-                for word in to_add.index:
-                    if word in output_buffer.index:
-                        posting_list = to_add.loc[word]['posting_list'] + output_buffer.loc[word]['posting_list']
-                        output_buffer.loc[word]['posting_list'] = posting_list
-                    else:
-                        output_buffer = pd.concat([output_buffer, to_add.loc[[word]]])
-                first_buffer.drop(first_buffer.index[0:total_length_per_output_buffer - output_buffer.shape[0]],
-                                  inplace=True)
-            else:
-                for word in first_buffer.index:
-                    if word in output_buffer.index:
-                        posting_list = first_buffer.loc[word]['posting_list'] + output_buffer.loc[word][
-                            'posting_list']
-                        output_buffer.loc[word]['posting_list'] = posting_list
-                    else:
-                        output_buffer = pd.concat([output_buffer, first_buffer.loc[[word]]])
-                first_buffer = pd.DataFrame(columns=['word', 'posting_list'])
-                first_buffer.set_index('word', inplace=True)
-
-            if output_buffer.shape[0] >= total_length_per_output_buffer and total_files_to_write > 1:
-                write_pd_block_to_disk(output_buffer, index, output_dir)
-                index += 1
-                output_buffer = pd.DataFrame(columns=['word', 'posting_list'])
-                output_buffer.set_index('word', inplace=True)
-                total_files_to_write -= 1
-
-        while not first_buffer.empty and not second_buffer.empty:
-            first_word = first_buffer.index[0]
-            second_word = second_buffer.index[0]
-            if first_word < second_word:
-                output_buffer = pd.concat([output_buffer, first_buffer.iloc[0:1, :]])
-                first_buffer.drop(first_word, inplace=True)
-            elif first_word > second_word:
-                output_buffer = pd.concat([output_buffer, second_buffer.iloc[0:1, :]])
-                second_buffer.drop(second_word, inplace=True)
-            else:
-                posting_list = first_buffer.loc[first_word, 'posting_list'] + second_buffer.loc[
-                    second_word, 'posting_list']
-                combined = pd.DataFrame({'word': [first_word],
-                                         'posting_list': [posting_list]})
-                combined.set_index('word', inplace=True)
-                output_buffer = pd.concat([output_buffer, combined])
-                first_buffer.drop(first_word, inplace=True)
-                second_buffer.drop(second_word, inplace=True)
-
-            if output_buffer.shape[0] >= total_length_per_output_buffer and total_files_to_write > 1:
-                write_pd_block_to_disk(output_buffer, index, output_dir)
-                index += 1
-                output_buffer = pd.DataFrame(columns=['word', 'posting_list'])
-                output_buffer.set_index('word', inplace=True)
-                total_files_to_write -= 1
-
-    if not first_buffer.empty:
-        for word in first_buffer.index:
-            if word in output_buffer.index:
-                posting_list = first_buffer.loc[word]['posting_list'] + output_buffer.loc[word]['posting_list']
-                output_buffer.loc[word]['posting_list'] = posting_list
-            else:
-                output_buffer = pd.concat([output_buffer, first_buffer.loc[[word]]])
-
-    if not second_buffer.empty:
-        for word in second_buffer.index:
-            if word in output_buffer.index:
-                posting_list = second_buffer.loc[word]['posting_list'] + output_buffer.loc[word]['posting_list']
-                output_buffer.loc[word]['posting_list'] = posting_list
-            else:
-                output_buffer = pd.concat([output_buffer, second_buffer.loc[[word]]])
-
-    write_pd_block_to_disk(output_buffer, index, output_dir)
-    index += 1
-
-    return index
+from src.build_utils import process_lines
+from src.external_sort_utils import merge
 
 
 class SPIMIInvertedIndex:
@@ -186,13 +15,13 @@ class SPIMIInvertedIndex:
     stop_words: set[str]
     stemmer = nltk.SnowballStemmer("english")
 
-    def __init__(self, data_file_name: str, output_dir: str, block_size: int) -> None:
+    def __init__(self, data_file_name: str, output_dir: str, block_size: int, language: str = 'english') -> None:
         # nltk.download('punkt')
         # nltk.download('stopwords')
         self.output_dir = output_dir
         self.dataFileName = data_file_name
         self.blockSize = block_size
-        self.stop_words = set(nltk.corpus.stopwords.words('english'))
+        self.stop_words = set(nltk.corpus.stopwords.words(language))
 
     def clean(self):
         if os.path.exists(self.output_dir):
@@ -204,55 +33,22 @@ class SPIMIInvertedIndex:
         current_block_count = 1
         current_line_count = 0
         lines = []
+        pool = Pool(processes=cpu_count())
         for line in data:
             lines.append(line)
             current_line_count += 1
             if current_line_count == self.blockSize:
-                inverted_index, words = self.make_block(lines)
-                self.write_block_to_disk(inverted_index, words, current_block_count)
+                pool.apply_async(process_lines,
+                                 args=(lines, current_block_count, self.output_dir, self.stemmer, self.stop_words))
                 current_block_count += 1
                 current_line_count = 0
                 lines.clear()
         if len(lines) > 0:
-            inverted_index, words = self.make_block(lines)
-            self.write_block_to_disk(inverted_index, words, current_block_count)
+            pool.apply_async(process_lines,
+                             args=(lines, current_block_count, self.output_dir, self.stemmer, self.stop_words))
+        pool.close()
+        pool.join()
         lines.clear()
-
-    def process_word(self, content: list[str]) -> tuple[str, list[str]]:
-        target = content[1]
-        id = content[0]
-        content_tokenized = nltk.word_tokenize(target)
-        content_stemmed = [self.stemmer.stem(word) for word in content_tokenized]
-        content_filtered = [word for word in content_stemmed if word.isalpha() and word not in self.stop_words]
-        return id, content_filtered
-
-    def make_block(self, lines: list[str]) -> tuple[dict, set[str]]:
-        inverted_index = {}
-        data = [json.loads(obj) for obj in lines]
-        df = pd.DataFrame(data)
-        df.loc[:, 'id'] = df.loc[:, 'id'].astype(str)
-        content: list[list[str]] = df.loc[:, ['id', 'abstract']].values
-        content_filtered = list(map(self.process_word, content))
-        total_words = set()
-        for id, words in content_filtered:
-            unique_words = set(words)
-            for word in unique_words:
-                if word in inverted_index:
-                    inverted_index[word].append((id, words.count(word)))
-                else:
-                    inverted_index[word] = [(id, words.count(word))]
-            total_words.update(unique_words)
-        return inverted_index, total_words
-
-    def write_block_to_disk(self, inverted_index: dict, words: set[str], block_number: int) -> None:
-        words_sorted = sorted(words)
-        output_file_path = f'{self.output_dir}/temp_{block_number}.feather'
-        df = pd.DataFrame(columns=['word', 'posting_list'])
-        for word in words_sorted:
-            df = df.append({'word': word, 'posting_list': inverted_index[word]}, ignore_index=True)
-        df.reset_index(inplace=True)
-        df['posting_list'] = df['posting_list'].apply(lambda x: json.dumps(x))
-        df.to_feather(output_file_path)
 
     def merge_blocks(self):
         current_batch_size = 2
