@@ -173,7 +173,7 @@ class SPIMIInvertedIndex:
                                 'posting_list']
                             output_buffer.loc[word]['posting_list'] = posting_list
                         else:
-                            output_buffer = output_buffer.append(second_buffer.loc[word])
+                            output_buffer = pd.concat([output_buffer, second_buffer])
                     self.write_pd_block_to_disk(output_buffer, index, output_dir)
                     index += 1
                     return index
@@ -185,7 +185,7 @@ class SPIMIInvertedIndex:
                             posting_list = to_add.loc[word]['posting_list'] + output_buffer.loc[word]['posting_list']
                             output_buffer.loc[word]['posting_list'] = posting_list
                         else:
-                            output_buffer = output_buffer.append(to_add.loc[word])
+                            output_buffer = pd.concat([output_buffer, to_add])
                     second_buffer.drop(second_buffer.index[0:total_length_per_output_buffer - output_buffer.shape[0]],
                                        inplace=True)
                 else:
@@ -195,7 +195,7 @@ class SPIMIInvertedIndex:
                                 'posting_list']
                             output_buffer.loc[word]['posting_list'] = posting_list
                         else:
-                            output_buffer = output_buffer.append(second_buffer.loc[word])
+                            output_buffer = pd.concat([output_buffer, second_buffer])
                     second_buffer = pd.DataFrame(columns=['word', 'posting_list'])
                     second_buffer.set_index('word', inplace=True)
 
@@ -214,7 +214,7 @@ class SPIMIInvertedIndex:
                                 'posting_list']
                             output_buffer.loc[word]['posting_list'] = posting_list
                         else:
-                            output_buffer = output_buffer.append(first_buffer.loc[word])
+                            output_buffer = pd.concat([output_buffer, first_buffer])
                     self.write_pd_block_to_disk(output_buffer, index, output_dir)
                     index += 1
                     return index
@@ -226,7 +226,7 @@ class SPIMIInvertedIndex:
                             posting_list = to_add.loc[word]['posting_list'] + output_buffer.loc[word]['posting_list']
                             output_buffer.loc[word]['posting_list'] = posting_list
                         else:
-                            output_buffer = output_buffer.append(to_add.loc[word])
+                            output_buffer = pd.concat([output_buffer, to_add])
                     first_buffer.drop(first_buffer.index[0:total_length_per_output_buffer - output_buffer.shape[0]],
                                       inplace=True)
                 else:
@@ -236,7 +236,7 @@ class SPIMIInvertedIndex:
                                 'posting_list']
                             output_buffer.loc[word]['posting_list'] = posting_list
                         else:
-                            output_buffer = output_buffer.append(first_buffer.loc[word])
+                            output_buffer = pd.concat([output_buffer, first_buffer])
                     first_buffer = pd.DataFrame(columns=['word', 'posting_list'])
                     first_buffer.set_index('word', inplace=True)
 
@@ -251,10 +251,10 @@ class SPIMIInvertedIndex:
                 first_word = first_buffer.index[0]
                 second_word = second_buffer.index[0]
                 if first_word < second_word:
-                    output_buffer = output_buffer.append(first_buffer.iloc[0:1, :])
+                    output_buffer = pd.concat([output_buffer, first_buffer.iloc[0:1, :]])
                     first_buffer.drop(first_word, inplace=True)
                 elif first_word > second_word:
-                    output_buffer = output_buffer.append(second_buffer.iloc[0:1, :])
+                    output_buffer = pd.concat([output_buffer, second_buffer.iloc[0:1, :]])
                     second_buffer.drop(second_word, inplace=True)
                 else:
                     posting_list = first_buffer.loc[first_word, 'posting_list'] + second_buffer.loc[
@@ -262,7 +262,7 @@ class SPIMIInvertedIndex:
                     combined = pd.DataFrame({'word': [first_word],
                                              'posting_list': [posting_list]})
                     combined.set_index('word', inplace=True)
-                    output_buffer = output_buffer.append(combined)
+                    output_buffer = pd.concat([output_buffer, combined])
                     first_buffer.drop(first_word, inplace=True)
                     second_buffer.drop(second_word, inplace=True)
 
