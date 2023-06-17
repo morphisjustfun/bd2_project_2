@@ -106,7 +106,7 @@ class SPIMIInvertedIndex:
         inverted_index.set_index('word', inplace=True)
 
     def merge_blocks(self):
-        current_batch_size = 2
+        current_batch_size = 4
         total_files = len(glob.glob(f'{self.output_dir}/1/*.feather'))
         while current_batch_size <= total_files:
             output_dir = f'{self.output_dir}{current_batch_size}/'
@@ -115,7 +115,6 @@ class SPIMIInvertedIndex:
             if not os.path.exists(output_dir):
                 os.makedirs(output_dir)
             current_files.sort(key=lambda x: int(x.split('/')[-1].split('_')[-1].split('.')[0]))
-            remainder = total_files % current_batch_size
             index = 1
             pool = Pool(processes=cpu_count())
             for i in range(0, total_files, current_batch_size):
@@ -126,18 +125,6 @@ class SPIMIInvertedIndex:
                 index = index + current_batch_size
             pool.close()
             pool.join()
-
-            if remainder > 0:
-                if remainder > current_batch_size // 2:
-                    first_group = current_files[
-                                  total_files - remainder:total_files - remainder + current_batch_size // 2]
-                    second_group = current_files[total_files - remainder + current_batch_size // 2:]
-                else:
-                    first_group = current_files[total_files - remainder:]
-                    second_group = []
-                self.merge(first_group, second_group, output_dir, index)
-
-            # merge the remainder
             current_batch_size *= 2
 
     def merge(self, first_group: list[str], second_group: list[str], output_dir: str, index: int) -> int:
