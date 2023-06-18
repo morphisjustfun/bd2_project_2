@@ -35,7 +35,7 @@
 
 # **Video**
 
-[![Video](https://drive.google.com/file/d/14rviu01hkw7KYcxpZ5FzyKvKuJ6cqAAO/view?usp=share_link)](https://drive.google.com/file/d/14rviu01hkw7KYcxpZ5FzyKvKuJ6cqAAO/view?usp=share_link)
+[Demo](https://drive.google.com/file/d/14rviu01hkw7KYcxpZ5FzyKvKuJ6cqAAO/view?usp=share_link)
 
 # **Introducción**
 
