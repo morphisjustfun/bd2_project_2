@@ -33,6 +33,8 @@ class SPIMIInvertedIndex:
         current_block_count = 1
         current_line_count = 0
         lines = []
+        if not os.path.exists(f'{self.output_dir}/1/'):
+            os.makedirs(f'{self.output_dir}/1/')
         pool = Pool(processes=cpu_count())
         for line in data:
             lines.append(line)
