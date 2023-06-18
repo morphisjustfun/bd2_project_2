@@ -6,12 +6,12 @@ from multiprocessing import cpu_count
 if __name__ == "__main__":
     test = SPIMIInvertedIndex(data_file_name="data/data.json", output_dir="dist/", block_size=50000)
     # test.clean()
-    test.build()
-    # benchmark with miliseconds precision
     begin = time.time()
-    test.merge_blocks()
+    test.build()
     end = time.time()
     print("Cores", cpu_count())
     print("Time elapsed: ", end - begin, "s")
     print("Time elapsed: ", (end - begin) * 1000, "ms")
+    # benchmark with miliseconds precision
+    test.merge_blocks()
 
