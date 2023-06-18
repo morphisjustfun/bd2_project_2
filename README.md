@@ -119,14 +119,14 @@ Con todo esto, se lograron los siguientes resultados en cuanto a la construcció
 |  **Tiempo de ejecución** | **Optimización** |
 | --- | --- |
 |  602.34 s | Sí |
-|  5377.75 | No |
+|  5377.75 s | No |
 
 - Merge sort
 
 |  **Tiempo de ejecución** | **Optimización** |
 | --- | --- |
 |  9444.71 s | Sí |
-|  30582.92 | No |
+|  30582.92 s | No |
 
 ### **Ejecución óptima de consultas**
 
