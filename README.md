@@ -6,6 +6,7 @@
 * Luis Berrospi Rodriguez
 * Angello Zuloaga Loo
 
+
 | **Integrante** | **Rol** |
 | --- | --- |
 | Angello | Informe y base de datos |
@@ -32,6 +33,9 @@
     - [Interfaz de usuario](#interfaz-de-usuario)
 
 
+# **Video**
+
+[![Video](https://drive.google.com/file/d/14rviu01hkw7KYcxpZ5FzyKvKuJ6cqAAO/view?usp=share_link)](https://drive.google.com/file/d/14rviu01hkw7KYcxpZ5FzyKvKuJ6cqAAO/view?usp=share_link)
 
 # **Introducción**
 
@@ -126,7 +130,7 @@ Con todo esto, se lograron los siguientes resultados en cuanto a la construcció
 |  **Tiempo de ejecución** | **Optimización** |
 | --- | --- |
 |  9444.71 s | Sí |
-|  30582.92 s | No |
+|  30582.92 s| No |
 
 ### **Ejecución óptima de consultas**
 
