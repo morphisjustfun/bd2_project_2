@@ -12,7 +12,7 @@ def process_lines(lines: list[str], current_block_count: int, output_dir: str, s
 def process_word(content: list[str], stemmer, stop_words: set[str]) -> tuple[str, list[str]]:
     target = content[1]
     id = content[0]
-    content_tokenized = nltk.word_tokenize(target)
+    content_tokenized = nltk.word_tokenize(target, language='english')
     content_stemmed = [stemmer.stem(word) for word in content_tokenized]
     content_filtered = [word for word in content_stemmed if word.isalpha() and word not in stop_words]
     return id, content_filtered
