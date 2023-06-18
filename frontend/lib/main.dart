@@ -227,6 +227,10 @@ class _MyHomePageState extends State<MyHomePage> {
                     children: [
                       const Text('Top K - Python'),
                       const SizedBox(height: 50),
+                      pythonTime != null
+                          ? Text('Time: $pythonTime s')
+                          : const SizedBox(),
+                      const SizedBox(height: 50),
                       Table(
                         border: TableBorder.all(),
                         children: const [
@@ -257,10 +261,6 @@ class _MyHomePageState extends State<MyHomePage> {
                               }).toList(),
                             )
                           : const SizedBox(),
-                      const SizedBox(height: 20),
-                      pythonTime != null
-                          ? Text('Time: $pythonTime s')
-                          : const SizedBox(),
                     ],
                   )),
                   const SizedBox(width: 50),
@@ -268,6 +268,10 @@ class _MyHomePageState extends State<MyHomePage> {
                       child: Column(
                     children: [
                       const Text('Top K - PostgreSQL'),
+                      const SizedBox(height: 50),
+                      postgresqlTime != null
+                          ? Text('Time: $postgresqlTime s')
+                          : const SizedBox(),
                       const SizedBox(height: 50),
                       Table(
                         border: TableBorder.all(),
@@ -298,10 +302,6 @@ class _MyHomePageState extends State<MyHomePage> {
                                 );
                               }).toList(),
                             )
-                          : const SizedBox(),
-                      const SizedBox(height: 20),
-                      postgresqlTime != null
-                          ? Text('Time: $postgresqlTime s')
                           : const SizedBox(),
                     ],
                   )),
