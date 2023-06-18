@@ -186,4 +186,6 @@ class SPIMIInvertedIndex:
 
         # sort
         scores.sort(key=lambda x: x[1], reverse=True)
-        return [(document, score) for document, score in scores[:k]]
+        selected = scores[:k]
+        selected = list(map(lambda x: {'doc_id': x[0], 'score': x[1]}, selected))
+        return selected
