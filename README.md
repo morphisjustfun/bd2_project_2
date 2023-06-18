@@ -14,12 +14,23 @@
 
 ## **Tabla de contenido**
 
-- [**Proyecto BD 2**](#proyecto-bd-2)
+- [Proyecto BD 2](#proyecto-bd-2)
     - [**Integrantes**](#integrantes)
-    - [**Tabla de contenido**](#tabla-de-contenido)
+  - [**Tabla de contenido**](#tabla-de-contenido)
 - [**Introducción**](#introducción)
-    - [**Objetivo**](#objetivo)
-    - [**Dominio de Datos**](#dominio-de-datos)
+  - [**Objetivo**](#objetivo)
+  - [**Dominio de Datos**](#dominio-de-datos)
+  - [**Backend**](#backend)
+    - [**Construcción del Índice Invertido**](#construcción-del-índice-invertido)
+    - [**Manejo de memoria secundaria y optimizaciones**](#manejo-de-memoria-secundaria-y-optimizaciones)
+      - [**Manejo de memoria secundaria**](#manejo-de-memoria-secundaria)
+      - [**Optimizaciones**](#optimizaciones)
+    - [**Ejecución óptima de consultas**](#ejecución-óptima-de-consultas)
+  - [**Frontend**](#frontend)
+    - [Diseño del índice con Postgresql](#diseño-del-índice-con-postgresql)
+    - [Análisis comparativo de tiempos de ejecución](#análisis-comparativo-de-tiempos-de-ejecución)
+    - [Interfaz de usuario](#interfaz-de-usuario)
+
 
 
 # **Introducción**
