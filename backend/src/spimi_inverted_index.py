@@ -41,7 +41,8 @@ class SPIMIInvertedIndex:
             current_line_count += 1
             if current_line_count == self.blockSize:
                 pool.apply_async(process_lines,
-                                 args=(lines.copy(), current_block_count, self.output_dir, self.stemmer, self.stop_words))
+                                 args=(
+                                     lines.copy(), current_block_count, self.output_dir, self.stemmer, self.stop_words))
                 current_block_count += 1
                 current_line_count = 0
                 lines.clear()

@@ -25,6 +25,7 @@ def write_block_to_disk(inverted_index: dict, words: set[str], block_number: int
     for word in words_sorted:
         df = pd.concat([df, pd.DataFrame({'word': [word], 'posting_list': [inverted_index[word]]})])
     df['posting_list'] = df['posting_list'].apply(lambda x: json.dumps(x))
+    df.reset_index(inplace=True, drop=True)
     df.to_feather(output_file_path)
 
 
